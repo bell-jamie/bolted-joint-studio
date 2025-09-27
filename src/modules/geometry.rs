@@ -6,7 +6,31 @@ use egui_plot::{Line, PlotPoint, PlotPoints, Polygon};
 use serde::{Deserialize, Serialize};
 
 const EPS: f64 = 1e-9; // Used to prevent divide-by-zero (f64::EPSILON)
-const RESOLUTION: usize = 1_000; // Must be even
+const RESOLUTION: usize = 1_000; // Must be even - I should really work on this
+
+/// By default, each geometry type must be stored as the most basic interpretation
+/// If it's complex data has been generated, this is stored in an Option
+/// The update of this has to be handled some how
+/// Dynamic resolution will be used for intersections and drawing
+///
+/// Geometry types for sketching system:
+/// Point
+/// Line
+/// Arc
+///
+/// Compound types:
+/// Path
+///
+/// Fillet - function that creates arc from two lines
+/// pub fn fillet(radius: f32, l1: &mut line, l2: &mut line) -> Option<Arc> {
+///     if l1.p1 != l2.p1 || l1.p1 != l2.p2 || l1.p2 != l2.p1 || l1.p2 != l2.p2 {
+///          return None;   
+/// }
+///
+/// find intersection point
+///
+/// shorten line lengths to accomodate fillet -> can be part of the None criteria
+/// }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Point {
@@ -77,6 +101,20 @@ impl Point {
             x: self.x,
             y: self.y,
         }
+    }
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub struct Arc {
+    pub p1: Point,
+    pub p2: Point,
+    pub p3: Point,
+    // pub complex data?
+}
+
+impl Arc {
+    pub fn new(p1: Point, p2: Point, p3: Point) -> Self {
+        Self { p1, p2, p3 }
     }
 }
 
@@ -257,10 +295,10 @@ impl Segment {
     }
 
     pub fn to_line(&self) -> Line {
-        Line::new(PlotPoints::from(vec![
-            self.p1.to_array(),
-            self.p2.to_array(),
-        ]))
+        Line::new(
+            "test", // bodge!
+            PlotPoints::from(vec![self.p1.to_array(), self.p2.to_array()]),
+        )
     }
 }
 
@@ -448,19 +486,23 @@ impl Path {
     // }
 
     pub fn to_line(&self) -> Line {
-        Line::new(PlotPoints::from_iter(
-            self.points.iter().map(|p| p.to_array()),
-        ))
+        Line::new(
+            "test", // bodge!
+            PlotPoints::from_iter(self.points.iter().map(|p| p.to_array())),
+        )
     }
 
     /// This links the last point in the path to create a full polygon
     pub fn to_poly(&self) -> Polygon {
-        Polygon::new(PlotPoints::from_iter(
-            self.points
-                .iter()
-                .chain(vec![&self.points[0]])
-                .map(|p| p.to_array()),
-        ))
+        Polygon::new(
+            "test", // bodge! must come back here and make this an argument...
+            PlotPoints::from_iter(
+                self.points
+                    .iter()
+                    .chain(vec![&self.points[0]])
+                    .map(|p| p.to_array()),
+            ),
+        )
     }
 }
 
@@ -476,17 +518,20 @@ impl Circle {
     }
 
     pub fn to_poly(&self) -> Polygon {
-        Polygon::new(PlotPoints::from(
-            (0..RESOLUTION)
-                .map(|i| {
-                    let theta = 2.0 * std::f64::consts::PI * (i as f64 / RESOLUTION as f64);
-                    [
-                        self.centre.x + self.radius * theta.cos(),
-                        self.centre.y + self.radius * theta.sin(),
-                    ]
-                })
-                .collect::<Vec<[f64; 2]>>(),
-        ))
+        Polygon::new(
+            "test", // bodge!
+            PlotPoints::from(
+                (0..RESOLUTION)
+                    .map(|i| {
+                        let theta = 2.0 * std::f64::consts::PI * (i as f64 / RESOLUTION as f64);
+                        [
+                            self.centre.x + self.radius * theta.cos(),
+                            self.centre.y + self.radius * theta.sin(),
+                        ]
+                    })
+                    .collect::<Vec<[f64; 2]>>(),
+            ),
+        )
     }
 
     pub fn intersections(&self, segment: &Segment) -> Option<Vec<Point>> {
