@@ -94,12 +94,11 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly # 1.81.0
+          toolchain: 1.89.0
           target: wasm32-unknown-unknown
           override: true
       - name: Download and install Trunk binary
-        # run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
-        run: cargo +nightly install trunk --locked
+        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
       - name: Build
         run: ./trunk build
 
