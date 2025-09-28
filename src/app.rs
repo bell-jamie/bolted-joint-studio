@@ -2,7 +2,7 @@ use crate::modules::{
     geometry, joint::BoltedJoint, library::Library, state::UIState, utils::text_width,
 };
 use egui::{vec2, Frame, Rounding, Stroke, Vec2};
-// use egui_flex::{Flex, FlexAlign, FlexAlignContent, FlexDirection, FlexItem, item};
+use egui_flex::{item, Flex, FlexAlign, FlexAlignContent, FlexDirection, FlexItem};
 use hello_egui_utils::center::Center;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -355,49 +355,50 @@ impl Studio {
     }
 
     /// egui_flex version
-    // fn show_status_bar(&mut self, ui: &mut egui::Ui) {
-    //     egui::Frame::new()
-    //         .inner_margin(egui::Margin::symmetric(8, 4))
-    //         .show(ui, |ui| {
-    //             Flex::horizontal()
-    //                 .align_content(FlexAlignContent::Stretch)
-    //                 .w_full()
-    //                 .show(ui, |flex| {
-    //                     flex.add_ui(item(), |ui| ui.label("Ready"));
-    //                     flex.add_ui(item().grow(1.0), |ui| ui.label("Modified: Today"));
-    //                     flex.add_ui(item(), |ui| ui.label("v0.0.1"));
-    //                 });
-    //         });
-    // }
-
     fn show_status_bar(&mut self, ui: &mut egui::Ui) {
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(8, 4))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let version = "v0.0.1";
-                    let font_size = ui.style().text_styles[&egui::TextStyle::Body].size;
-
-                    // Left item
-                    ui.label("Ready");
-
-                    // Center item - use allocate_space to take remaining space minus right item
-                    let available_width = ui.available_width();
-                    let right_item_width = text_width(ui, &version, font_size).x + 5.0; // magic 5.0
-
-                    ui.allocate_ui_with_layout(
-                        egui::Vec2::new(available_width - right_item_width, ui.available_height()),
-                        egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-                        |ui| {
-                            ui.label("Modified: Today");
-                        },
-                    );
-
-                    // Right item
-                    ui.label(version);
-                });
+                Flex::horizontal()
+                    .align_content(FlexAlignContent::Stretch)
+                    .w_full()
+                    .show(ui, |flex| {
+                        flex.add_ui(item(), |ui| ui.label("Ready"));
+                        flex.add_ui(item().grow(1.0), |ui| ui.label("Modified: Today"));
+                        flex.add_ui(item(), |ui| ui.label("v0.0.1"));
+                    });
             });
     }
+
+    // no flex version
+    // fn show_status_bar(&mut self, ui: &mut egui::Ui) {
+    //     egui::Frame::new()
+    //         .inner_margin(egui::Margin::symmetric(8, 4))
+    //         .show(ui, |ui| {
+    //             ui.horizontal(|ui| {
+    //                 let version = "v0.0.1";
+    //                 let font_size = ui.style().text_styles[&egui::TextStyle::Body].size;
+
+    //                 // Left item
+    //                 ui.label("Ready");
+
+    //                 // Center item - use allocate_space to take remaining space minus right item
+    //                 let available_width = ui.available_width();
+    //                 let right_item_width = text_width(ui, &version, font_size).x + 5.0; // magic 5.0
+
+    //                 ui.allocate_ui_with_layout(
+    //                     egui::Vec2::new(available_width - right_item_width, ui.available_height()),
+    //                     egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+    //                     |ui| {
+    //                         ui.label("Modified: Today");
+    //                     },
+    //                 );
+
+    //                 // Right item
+    //                 ui.label(version);
+    //             });
+    //         });
+    // }
 
     fn show_settings_window(&mut self, ctx: &egui::Context) {
         egui::Window::new("Settings")
