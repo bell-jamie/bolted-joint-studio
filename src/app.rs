@@ -1,6 +1,8 @@
-use crate::modules::{geometry, joint::BoltedJoint, library::Library, state::UIState};
-use egui::{Frame, Rounding, Stroke};
-use egui_flex::{Flex, FlexAlign, FlexAlignContent, FlexDirection, FlexItem, item};
+use crate::modules::{
+    geometry, joint::BoltedJoint, library::Library, state::UIState, utils::text_width,
+};
+use egui::{vec2, Frame, Rounding, Stroke, Vec2};
+use egui_flex::{item, Flex, FlexAlign, FlexAlignContent, FlexDirection, FlexItem};
 use hello_egui_utils::center::Center;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -19,6 +21,45 @@ impl Default for Studio {
             library: Library::default(),
             state: UIState::default(),
         }
+    }
+}
+struct GridHelper {
+    cell_size: egui::Vec2,
+    gap: f32,
+    padding: f32,
+    grid_cols: usize,
+}
+
+impl GridHelper {
+    fn new(
+        mut cell_size: Vec2,
+        gap: f32,
+        padding: f32,
+        grid_cols: usize,
+        window_width: f32,
+    ) -> Self {
+        // Adjust cell width based on window size
+        let pad_sum_x = padding * 2.0 + gap * (grid_cols - 1) as f32;
+        let cell_widest = ((window_width - 32.0) - pad_sum_x) / grid_cols as f32; // magic 32.0 -> 4 * 8.0?
+        cell_size.x = cell_size.x.max(cell_widest);
+
+        Self {
+            cell_size,
+            gap,
+            padding,
+            grid_cols,
+        }
+    }
+
+    fn card_size(&self, width_units: usize, height_units: usize) -> Vec2 {
+        vec2(
+            (width_units as f32) * self.cell_size.x + ((width_units - 1) as f32) * (self.gap + 8.0), // not sure where this 8.0 comes from
+            (height_units as f32) * self.cell_size.y + ((height_units - 1) as f32) * self.gap,
+        )
+    }
+
+    fn total_width(&self) -> f32 {
+        self.card_size(self.grid_cols, 1).x + (self.padding * 2.0)
     }
 }
 
@@ -96,280 +137,224 @@ impl Studio {
         });
     }
 
-fn show_central_content(&mut self, ui: &mut egui::Ui) {
-    ui.heading("Bolted Joint Studio");
-    ui.add_space(8.0);
-    
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, true])
-        .show(ui, |ui| {
-            // Account for scroll area margins and potential scrollbar
-            let available_width = ui.available_width() - 24.0; // Give some breathing room
-            let card_spacing = 12.0;
-            let min_card_width = 200.0;
-            
-            // Add padding to the entire content area
-            ui.add_space(12.0);
-            
-            // Calculate how many cards can fit per row
-            let cards_per_row = ((available_width + card_spacing) / (min_card_width + card_spacing)).floor() as usize;
-            let cards_per_row = cards_per_row.max(1);
-            
-            // Hero/Banner Card - Full Width  
-            ui.horizontal(|ui| {
-                ui.add_space(12.0); // Left padding
-                ui.vertical(|ui| {
-                    Self::hero_card(ui, available_width - 24.0); // Account for left+right padding
-                });
-                ui.add_space(12.0); // Right padding
-            });
-            ui.add_space(card_spacing);
-            
-            // Main Feature Cards Grid
-            ui.horizontal(|ui| {
-                ui.add_space(12.0); // Left padding
-                
-                ui.vertical(|ui| {
-                    Flex::horizontal()
-                        .wrap(true)
-                        .align_content(FlexAlignContent::Start)
-                        .gap(egui::vec2(card_spacing, card_spacing))
-                        .show(ui, |flex| {
-                            // Joint Design Card - Large
-                            flex.add_ui(
-                                FlexItem::new()
-                                    .basis(min_card_width * 1.4)
-                                    .shrink()
-                                    .grow(1.4),
-                                |ui| {
-                                    Self::card(ui, "Joint Design", "⚙️", true, |ui| {
-                                        ui.label("Configure your bolted joint parameters:");
-                                        ui.add_space(8.0);
-                                        
-                                        ui.horizontal(|ui| {
-                                            ui.label("Diameter:");
-                                            ui.add(egui::Slider::new(&mut 12.0, 6.0..=30.0).suffix(" mm"));
-                                        });
-                                        
-                                        ui.horizontal(|ui| {
-                                            ui.label("Length:");
-                                            ui.add(egui::Slider::new(&mut 50.0, 20.0..=200.0).suffix(" mm"));
-                                        });
-                                        
-                                        ui.horizontal(|ui| {
-                                            ui.label("Grade:");
-                                            egui::ComboBox::new("grade", "")
-                                                .selected_text("ISO 8.8")
-                                                .show_ui(ui, |ui| {
-                                                    ui.selectable_value(&mut "", "ISO 8.8", "ISO 8.8");
-                                                    ui.selectable_value(&mut "", "ISO 10.9", "ISO 10.9");
-                                                });
-                                        });
-                                    });
-                                }
-                            );
+    fn show_central_content(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Bolted Joint Studio");
+        ui.add_space(12.0);
 
-                            // 3D Preview Card - Large
-                            flex.add_ui(
-                                FlexItem::new()
-                                    .basis(min_card_width * 1.4)
-                                    .shrink()
-                                    .grow(1.4),
-                                |ui| {
-                                    Self::card(ui, "3D Preview", "👁️", true, |ui| {
-                                        ui.vertical_centered(|ui| {
-                                            ui.add_space(20.0);
-                                            ui.label(egui::RichText::new("🔩").size(48.0));
-                                            ui.add_space(8.0);
-                                            ui.label("Interactive 3D Model");
-                                            ui.add_space(12.0);
-                                            if ui.button("Launch Viewer").clicked() {
-                                                // Launch 3D viewer
-                                            }
-                                        });
-                                    });
-                                }
-                            );
+        egui::ScrollArea::both()
+            .auto_shrink([false, false])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .show(ui, |ui| {
+                // Base grid configuration
+                let base_cell_size = egui::vec2(240.0, 160.0); // Base unit dimensions
+                let gap = 10.0; // Gap between cards
+                let padding = 10.0; // Padding around grid
+                let grid_cols = 4; // Total columns in grid
 
-                            // Stress Analysis Card
-                            flex.add_ui(
-                                FlexItem::new()
-                                    .basis(min_card_width)
-                                    .shrink()
-                                    .grow(1.0),
-                                |ui| {
-                                    Self::card(ui, "Stress Analysis", "📊", false, |ui| {
-                                        ui.label("Latest Results:");
-                                        ui.add_space(4.0);
-                                        ui.horizontal(|ui| {
-                                            ui.label("Max Stress:");
-                                            ui.label(egui::RichText::new("245 MPa").strong());
-                                        });
-                                        ui.horizontal(|ui| {
-                                            ui.label("Safety Factor:");
-                                            ui.label(egui::RichText::new("2.8").color(egui::Color32::from_rgb(0, 150, 0)));
-                                        });
-                                        if ui.small_button("View Details").clicked() {
-                                            // Show analysis details
-                                        }
-                                    });
-                                }
-                            );
+                // Calculate grid helper
+                let grid = GridHelper::new(
+                    base_cell_size,
+                    gap,
+                    padding,
+                    grid_cols,
+                    ui.available_width(),
+                );
 
-                            // Load Calculator Card
-                            flex.add_ui(
-                                FlexItem::new()
-                                    .basis(min_card_width)
-                                    .shrink()
-                                    .grow(1.0),
-                                |ui| {
-                                    Self::card(ui, "Load Calculator", "🔢", false, |ui| {
-                                        ui.horizontal(|ui| {
-                                            ui.label("Applied Load:");
-                                            ui.add(egui::DragValue::new(&mut 1000).suffix(" N"));
-                                        });
-                                        ui.add_space(4.0);
-                                        ui.horizontal(|ui| {
-                                            ui.label("Preload:");
-                                            ui.label(egui::RichText::new("2800 N").strong());
-                                        });
-                                        if ui.small_button("Calculate").clicked() {
-                                            // Perform calculation
-                                        }
-                                    });
-                                }
-                            );
+                // Set minimum size for the entire grid area
+                let total_width = grid.total_width();
+                ui.set_min_size(egui::vec2(total_width, 600.0));
 
-                            // Material Library Card
-                            flex.add_ui(
-                                FlexItem::new()
-                                    .basis(min_card_width)
-                                    .shrink()
-                                    .grow(1.0),
-                                |ui| {
-                                    Self::card(ui, "Material Library", "📚", false, |ui| {
-                                        ui.label("Quick Access:");
-                                        ui.add_space(4.0);
-                                        if ui.small_button("ISO Standards").clicked() {}
-                                        if ui.small_button("ASTM Standards").clicked() {}
-                                        if ui.small_button("DIN Standards").clicked() {}
-                                    });
-                                }
-                            );
+                ui.add_space(padding);
 
-                            // Reports Card
-                            flex.add_ui(
-                                FlexItem::new()
-                                    .basis(min_card_width)
-                                    .shrink()
-                                    .grow(1.0),
-                                |ui| {
-                                    Self::card(ui, "Reports", "📄", false, |ui| {
-                                        ui.label("Generate documentation:");
-                                        ui.add_space(4.0);
-                                        if ui.small_button("Calculation Report").clicked() {}
-                                        if ui.small_button("Export PDF").clicked() {}
-                                    });
-                                }
-                            );
-                        });
-                });
-                
-                ui.add_space(12.0); // Right padding
-            });
-            
-            ui.add_space(card_spacing * 2.0);
-            
-            // Add bottom padding
-            ui.add_space(12.0);
-        });
-}
-
-fn hero_card(ui: &mut egui::Ui, width: f32) {
-    Frame::group(ui.style())
-        .corner_radius(12)
-        .stroke(Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color.gamma_multiply(0.3)))
-        .fill(ui.visuals().panel_fill)
-        .inner_margin(16)
-        .show(ui, |ui| {
-            ui.set_width(width - 24.0);
-            
-            Flex::horizontal()
-                .align_items(FlexAlign::Center)
-                .show(ui, |flex| {
-                    flex.add_ui(FlexItem::new().grow(1.0), |ui| {
-                        ui.vertical(|ui| {
-                            ui.add_space(8.0);
-                            
-                            // Large title
-                            ui.label(egui::RichText::new("Advanced Bolted Joint Analysis")
-                                .size(22.0)
-                                .strong()
-                                .color(ui.visuals().text_color()));
-                            
-                            ui.add_space(6.0);
-                            
-                            // Subtitle
-                            ui.label(egui::RichText::new("Professional engineering tool for bolt design, analysis, and verification")
-                                .size(14.0)
-                                .color(ui.visuals().weak_text_color()));
-                            
-                            ui.add_space(12.0);
-                            
-                            // Action button
-                            if ui.add(egui::Button::new("Start New Project")
-                                .min_size(egui::vec2(140.0, 36.0)))
-                                .clicked() {
-                                // Handle new project
-                            }
-                        });
-                    });
-                    
-                    flex.add_ui(FlexItem::new().basis(80.0), |ui| {
-                        // Large icon or illustration
-                        ui.vertical_centered(|ui| {
-                            ui.label(egui::RichText::new("🔩").size(48.0));
-                        });
-                    });
-                });
-        });
-}
-
-fn card<F>(ui: &mut egui::Ui, title: &str, icon: &str, is_large: bool, content: F) 
-where
-    F: FnOnce(&mut egui::Ui),
-{
-    let card_height = if is_large { 140.0 } else { 120.0 };
-    
-    Frame::group(ui.style())
-        .corner_radius(10)
-        .stroke(Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color.gamma_multiply(0.5)))
-        .fill(ui.visuals().panel_fill)
-        .inner_margin(14)
-        .show(ui, |ui| {
-            ui.set_min_height(card_height - 28.0);
-            
-            ui.vertical(|ui| {
-                // Header with icon and title
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(icon).size(20.0));
-                    ui.add_space(8.0);
-                    ui.label(egui::RichText::new(title)
-                        .size(16.0)
-                        .strong()
-                        .color(ui.visuals().text_color()));
-                });
-                
-                ui.add_space(8.0);
-                ui.separator();
-                ui.add_space(8.0);
-                
-                // Custom content
-                content(ui);
-            });
-        });
-}
+                    ui.add_space(padding);
 
+                    ui.vertical(|ui| {
+                        // Row 1
+                        ui.horizontal(|ui| {
+                            // Large design card (2x1)
+                            ui.allocate_ui(grid.card_size(2, 1), |ui| {
+                                Self::sized_card(ui, "Joint Design", "⚙️", |ui| {
+                                    ui.columns(2, |cols| {
+                                        cols[0].label("Diameter:");
+                                        cols[0].add(egui::Slider::new(&mut 12.0, 6.0..=30.0));
+
+                                        cols[1].label("Length:");
+                                        cols[1].add(egui::Slider::new(&mut 50.0, 20.0..=200.0));
+                                    });
+                                    ui.horizontal(|ui| {
+                                        ui.label("Grade:");
+                                        egui::ComboBox::new("grade", "")
+                                            .selected_text("ISO 8.8")
+                                            .show_ui(ui, |ui| {
+                                                ui.selectable_value(&mut "", "ISO 8.8", "ISO 8.8");
+                                                ui.selectable_value(
+                                                    &mut "", "ISO 10.9", "ISO 10.9",
+                                                );
+                                            });
+                                    });
+                                });
+                            });
+
+                            ui.add_space(gap);
+
+                            // Preview card (2x1)
+                            ui.allocate_ui(grid.card_size(2, 1), |ui| {
+                                Self::sized_card(ui, "3D Preview", "👁️", |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.vertical(|ui| {
+                                            ui.label(egui::RichText::new("🔩").size(48.0));
+                                            ui.label("Interactive Model");
+                                        });
+                                        ui.separator();
+                                        ui.vertical(|ui| {
+                                            ui.label("Controls:");
+                                            if ui.button("Launch Viewer").clicked() {}
+                                            if ui.button("Export STL").clicked() {}
+                                            ui.checkbox(&mut true, "Show dimensions");
+                                        });
+                                    });
+                                });
+                            });
+                        });
+
+                        ui.add_space(gap);
+
+                        // Row 2
+                        ui.horizontal(|ui| {
+                            // Analysis card (1x1)
+                            ui.allocate_ui(grid.card_size(1, 1), |ui| {
+                                Self::sized_card(ui, "Analysis", "📊", |ui| {
+                                    ui.label("Results:");
+                                    ui.horizontal(|ui| {
+                                        ui.label("Stress:");
+                                        ui.label(egui::RichText::new("245 MPa").strong());
+                                    });
+                                    ui.horizontal(|ui| {
+                                        ui.label("Factor:");
+                                        ui.label(
+                                            egui::RichText::new("2.8").color(egui::Color32::GREEN),
+                                        );
+                                    });
+                                });
+                            });
+
+                            ui.add_space(gap);
+
+                            // Calculator card (1x1)
+                            ui.allocate_ui(grid.card_size(1, 1), |ui| {
+                                Self::sized_card(ui, "Calculator", "🔢", |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label("Load:");
+                                        ui.add(egui::DragValue::new(&mut 1000).suffix(" N"));
+                                    });
+                                    ui.label("Preload: 2800 N");
+                                });
+                            });
+
+                            ui.add_space(gap);
+
+                            // Materials card (1x1)
+                            ui.allocate_ui(grid.card_size(1, 1), |ui| {
+                                Self::sized_card(ui, "Materials", "📚", |ui| {
+                                    ui.label("Standards:");
+                                    if ui.small_button("ISO 8.8").clicked() {}
+                                    if ui.small_button("ISO 10.9").clicked() {}
+                                    if ui.small_button("ASTM").clicked() {}
+                                });
+                            });
+
+                            ui.add_space(gap);
+
+                            // Reports card (1x1)
+                            ui.allocate_ui(grid.card_size(1, 1), |ui| {
+                                Self::sized_card(ui, "Reports", "📄", |ui| {
+                                    ui.label("Export:");
+                                    if ui.small_button("PDF Report").clicked() {}
+                                    if ui.small_button("Data CSV").clicked() {}
+                                });
+                            });
+                        });
+
+                        ui.add_space(gap);
+
+                        // Row 3 - Example of tall card
+                        ui.horizontal(|ui| {
+                            // Settings card (1x2) - tall card
+                            ui.allocate_ui(grid.card_size(1, 2), |ui| {
+                                Self::sized_card(ui, "Settings", "⚙️", |ui| {
+                                    ui.label("Preferences:");
+                                    ui.checkbox(&mut true, "Auto-save");
+                                    ui.checkbox(&mut false, "Dark mode");
+                                    ui.separator();
+                                    ui.label("Units:");
+                                    ui.radio_value(&mut 0, 0, "Metric");
+                                    ui.radio_value(&mut 0, 1, "Imperial");
+                                    ui.separator();
+                                    ui.label("Precision:");
+                                    ui.add(egui::Slider::new(&mut 3, 1..=6).text("Decimals"));
+                                });
+                            });
+
+                            ui.add_space(gap);
+
+                            // Log/Status card (3x2) - wide card
+                            ui.allocate_ui(grid.card_size(3, 2), |ui| {
+                                Self::sized_card(ui, "System Log", "📋", |ui| {
+                                    egui::ScrollArea::vertical()
+                                        .max_height(60.0)
+                                        .show(ui, |ui| {
+                                            ui.label("✓ Bolt analysis completed");
+                                            ui.label("⚠ Material database needs update");
+                                            ui.label("ℹ Last calculation: 2 minutes ago");
+                                            ui.label("✓ Export successful");
+                                        });
+                                });
+                            });
+                        });
+                    });
+
+                    ui.add_space(padding);
+                });
+
+                ui.add_space(padding);
+            });
+    }
+
+    fn sized_card<F>(ui: &mut egui::Ui, title: &str, icon: &str, content: F)
+    where
+        F: FnOnce(&mut egui::Ui),
+    {
+        Frame::group(ui.style())
+            .corner_radius(10.0)
+            .stroke(Stroke::new(
+                1.0,
+                ui.visuals().widgets.noninteractive.bg_stroke.color,
+            ))
+            .fill(ui.visuals().panel_fill)
+            .inner_margin(12.0)
+            .show(ui, |ui| {
+                ui.expand_to_include_rect(ui.max_rect());
+
+                ui.vertical(|ui| {
+                    // Header
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(icon).size(16.0));
+                        ui.add_space(6.0);
+                        ui.label(egui::RichText::new(title).size(14.0).strong());
+                    });
+
+                    ui.add_space(6.0);
+                    ui.separator();
+                    ui.add_space(6.0);
+
+                    // Content fills remaining space
+                    content(ui);
+                });
+            });
+    }
+
+    /// egui_flex version
     fn show_status_bar(&mut self, ui: &mut egui::Ui) {
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(8, 4))
@@ -384,6 +369,36 @@ where
                     });
             });
     }
+
+    // no flex version
+    // fn show_status_bar(&mut self, ui: &mut egui::Ui) {
+    //     egui::Frame::new()
+    //         .inner_margin(egui::Margin::symmetric(8, 4))
+    //         .show(ui, |ui| {
+    //             ui.horizontal(|ui| {
+    //                 let version = "v0.0.1";
+    //                 let font_size = ui.style().text_styles[&egui::TextStyle::Body].size;
+
+    //                 // Left item
+    //                 ui.label("Ready");
+
+    //                 // Center item - use allocate_space to take remaining space minus right item
+    //                 let available_width = ui.available_width();
+    //                 let right_item_width = text_width(ui, &version, font_size).x + 5.0; // magic 5.0
+
+    //                 ui.allocate_ui_with_layout(
+    //                     egui::Vec2::new(available_width - right_item_width, ui.available_height()),
+    //                     egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+    //                     |ui| {
+    //                         ui.label("Modified: Today");
+    //                     },
+    //                 );
+
+    //                 // Right item
+    //                 ui.label(version);
+    //             });
+    //         });
+    // }
 
     fn show_settings_window(&mut self, ctx: &egui::Context) {
         egui::Window::new("Settings")
@@ -427,6 +442,8 @@ impl eframe::App for Studio {
         //         egui::widgets::global_theme_preference_buttons(ui);
         //     });
         // });
+
+        // ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(vec2(2000.0, 600.0))); // doesn't seem to work?
 
         self.show_main_panel(ctx);
     }

@@ -129,9 +129,25 @@ pub fn req_precision(value: f64, decimals: isize) -> usize {
     }
 }
 
-pub fn text_width(ctx: &Context, text: &str, size: f32) -> Vec2 {
+pub fn _text_width(ctx: &Context, text: &str, size: f32) -> Vec2 {
     // Returns the x and y size of the text
     ctx.fonts(|f| {
+        f.layout_no_wrap(
+            text.to_string(),
+            {
+                let mut default = egui::FontId::default();
+                default.size = size;
+                default
+            },
+            egui::Color32::WHITE,
+        )
+    })
+    .size()
+}
+
+pub fn text_width(ui: &egui::Ui, text: &str, size: f32) -> Vec2 {
+    // Returns the x and y size of the text
+    ui.fonts(|f| {
         f.layout_no_wrap(
             text.to_string(),
             {
