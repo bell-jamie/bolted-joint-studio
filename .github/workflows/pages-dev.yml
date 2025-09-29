@@ -3,7 +3,7 @@ name: Github Pages (Development)
 on:
   push:
     branches:
-      - v0.1.0-indev # need to change this for each dev branch
+      - v0.2.0-indev # need to change this for each dev branch
 
 permissions:
   contents: write # for committing to gh-pages branch.

@@ -1,8 +1,8 @@
 use crate::modules::{
     geometry, joint::BoltedJoint, library::Library, state::UIState, utils::text_width,
 };
-use egui::{vec2, Frame, Rounding, Stroke, Vec2};
-use egui_flex::{item, Flex, FlexAlign, FlexAlignContent, FlexDirection, FlexItem};
+use egui::{Frame, Rounding, Stroke, Vec2, vec2};
+use egui_flex::{Flex, FlexAlign, FlexAlignContent, FlexDirection, FlexItem, item};
 use hello_egui_utils::center::Center;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -138,8 +138,15 @@ impl Studio {
     }
 
     fn show_central_content(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Bolted Joint Studio");
-        ui.add_space(12.0);
+        ui.horizontal(|ui| {
+            ui.add_space(10.0);
+            ui.heading(
+                egui::RichText::new("Bolted Joint Studio")
+                    .size(30.0)
+                    .strong(),
+            );
+        });
+        // ui.add_space(12.0);
 
         egui::ScrollArea::both()
             .auto_shrink([false, false])
