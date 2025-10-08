@@ -146,7 +146,7 @@ impl Studio {
                     .strong(),
             );
         });
-        // ui.add_space(12.0);
+        ui.add_space(10.0);
 
         egui::ScrollArea::both()
             .auto_shrink([false, false])
@@ -171,7 +171,7 @@ impl Studio {
                 let total_width = grid.total_width();
                 ui.set_min_size(egui::vec2(total_width, 600.0));
 
-                ui.add_space(padding);
+                // ui.add_space(padding); // already padded below the title
 
                 ui.horizontal(|ui| {
                     ui.add_space(padding);
