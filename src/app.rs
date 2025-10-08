@@ -372,7 +372,9 @@ impl Studio {
                     .show(ui, |flex| {
                         flex.add_ui(item(), |ui| ui.label("Ready"));
                         flex.add_ui(item().grow(1.0), |ui| ui.label("Modified: Today"));
-                        flex.add_ui(item(), |ui| ui.label("v0.0.1"));
+                        flex.add_ui(item(), |ui| {
+                            ui.label(concat!("v", env!("CARGO_PKG_VERSION")))
+                        });
                     });
             });
     }

@@ -1,6 +1,6 @@
 [package]
 name = "bolted_joints"
-version = "0.0.1"
+version = "0.2.0-indev"
 authors = ["James Bell <jmhbell@icloud.com>"]
 edition = "2024"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
