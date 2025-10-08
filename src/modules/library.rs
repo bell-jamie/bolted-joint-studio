@@ -3,10 +3,10 @@ use crate::modules::joint::BoltedJoint;
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct Library {
-    bolt: Vec<Bolt>,
-    stud: Vec<Stud>,
-    nut: Vec<Nut>,
-    threaded: Vec<Threaded>,
-    clamped: Vec<Clamped>,
-    joint: Vec<BoltedJoint>,
+    pub bolt: Vec<Bolt>,
+    pub stud: Vec<Stud>,
+    pub nut: Vec<Nut>,
+    pub threaded: Vec<Threaded>,
+    pub clamped: Vec<Clamped>,
+    pub joint: Vec<BoltedJoint>,
 }

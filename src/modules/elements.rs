@@ -17,6 +17,7 @@ pub struct Threaded {
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct Nut {
+    pub name: String,
     thread: Thread,
     bearing_id: f32,
     bearing_od: f32,
@@ -35,6 +36,7 @@ enum DriveType {
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct Stud {
+    pub name: String,
     thread_a: Thread,
     thread_length_a: f32,
     thread_b: Thread,
@@ -48,9 +50,10 @@ pub struct Stud {
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct Bolt {
-    thread: Thread,
-    thread_length: f32,
-    head_thickness: f32,
-    bearing_od: f32,
-    root_fillet: Option<f32>,
+    pub name: String,
+    pub thread: Thread,
+    pub thread_length: f32,
+    pub head_thickness: f32,
+    pub bearing_od: f32,
+    pub root_fillet: Option<f32>,
 }

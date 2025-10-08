@@ -1,7 +1,7 @@
 use crate::modules::{
     geometry, joint::BoltedJoint, library::Library, state::UIState, utils::text_width,
 };
-use egui::{Frame, Rounding, Stroke, Vec2, vec2};
+use egui::{Frame, Rounding, Stroke, Ui, Vec2, vec2};
 use egui_flex::{Flex, FlexAlign, FlexAlignContent, FlexDirection, FlexItem, item};
 use hello_egui_utils::center::Center;
 
@@ -75,7 +75,56 @@ impl Studio {
             return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         }
 
-        Default::default()
+        // Default::default()
+
+        // Trying to create a test setup
+        let mut app = Studio::default();
+        app.library.bolt.push(crate::modules::elements::Bolt {
+            name: "Inlet interface bolt".to_owned(),
+            thread: crate::modules::thread::Thread::default(),
+            thread_length: 10.0,
+            head_thickness: 5.0,
+            bearing_od: 8.0,
+            root_fillet: Some(0.5),
+        });
+        app.joint.bolt_id = Some(0);
+        app
+    }
+
+    pub fn get_fastener_name(&self) -> String {
+        if let Some(i) = self.joint.bolt_id {
+            self.library.bolt[i].name.clone()
+        } else if let Some(i) = self.joint.stud_id {
+            self.library.stud[i].name.clone()
+        } else {
+            "Fastener".to_owned()
+        }
+    }
+
+    pub fn get_fastener_name_mut(&mut self) -> Option<&mut String> {
+        if let Some(i) = self.joint.bolt_id {
+            Some(&mut self.library.bolt[i].name)
+        } else if let Some(i) = self.joint.stud_id {
+            Some(&mut self.library.stud[i].name)
+        } else {
+            None
+        }
+    }
+
+    pub fn render_title_editable(&mut self, ui: &mut Ui) {
+        if let Some(name) = self.get_fastener_name_mut() {
+            ui.add(
+                egui::TextEdit::singleline(name)
+                    .font(egui::TextStyle::Heading)
+                    .desired_width(f32::INFINITY),
+            );
+        } else {
+            ui.label(
+                egui::RichText::new("No fastener selected")
+                    .size(14.0)
+                    .strong(),
+            );
+        }
     }
 
     pub fn show_main_panel(&mut self, ctx: &egui::Context) {
@@ -153,7 +202,7 @@ impl Studio {
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
                 // Base grid configuration
-                let base_cell_size = egui::vec2(240.0, 160.0); // Base unit dimensions
+                let base_cell_size = egui::vec2(240.0, 200.0); // Base unit dimensions
                 let gap = 10.0; // Gap between cards
                 let padding = 10.0; // Padding around grid
                 let grid_cols = 4; // Total columns in grid
@@ -262,13 +311,18 @@ impl Studio {
                             ui.add_space(gap);
 
                             // Materials card (1x1)
+                            // ui.allocate_ui(grid.card_size(1, 1), |ui| {
+                            //     Self::sized_card(ui, "Materials", "📚", |ui| {
+                            //         ui.label("Standards:");
+                            //         if ui.small_button("ISO 8.8").clicked() {}
+                            //         if ui.small_button("ISO 10.9").clicked() {}
+                            //         if ui.small_button("ASTM").clicked() {}
+                            //     });
+                            // });
+
+                            // Testing calling a card like this
                             ui.allocate_ui(grid.card_size(1, 1), |ui| {
-                                Self::sized_card(ui, "Materials", "📚", |ui| {
-                                    ui.label("Standards:");
-                                    if ui.small_button("ISO 8.8").clicked() {}
-                                    if ui.small_button("ISO 10.9").clicked() {}
-                                    if ui.small_button("ASTM").clicked() {}
-                                });
+                                Self::bolt_input_caller(ui, self);
                             });
 
                             ui.add_space(gap);
@@ -356,6 +410,54 @@ impl Studio {
                     ui.add_space(6.0);
 
                     // Content fills remaining space
+                    content(ui);
+                });
+            });
+    }
+
+    fn bolt_input_caller(ui: &mut egui::Ui, app: &mut Studio) {
+        Self::content_card(
+            ui,
+            Some(|ui: &mut Ui| app.render_title_editable(ui)),
+            |ui| {
+                let mut selected = "Bolt".to_owned();
+                let options = vec!["Bolt", "Stud"];
+
+                egui::ComboBox::from_id_salt("suss")
+                    .selected_text(selected.as_str())
+                    .show_ui(ui, |ui| {
+                        for option in options {
+                            ui.selectable_value(&mut selected, option.to_string(), option);
+                        }
+                    });
+            },
+        );
+    }
+
+    fn content_card(
+        ui: &mut Ui,
+        title_ui: Option<impl FnOnce(&mut Ui)>,
+        content: impl FnOnce(&mut Ui),
+    ) {
+        Frame::group(ui.style())
+            .corner_radius(10.0)
+            .stroke(Stroke::new(
+                1.0,
+                ui.visuals().widgets.noninteractive.bg_stroke.color,
+            ))
+            .fill(ui.visuals().panel_fill)
+            .inner_margin(12.0)
+            .show(ui, |ui| {
+                ui.expand_to_include_rect(ui.max_rect());
+
+                ui.vertical(|ui| {
+                    if let Some(title) = title_ui {
+                        title(ui);
+                        ui.add_space(6.0);
+                        ui.separator();
+                        ui.add_space(6.0);
+                    }
+
                     content(ui);
                 });
             });
