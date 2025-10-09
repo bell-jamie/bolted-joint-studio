@@ -127,6 +127,18 @@ impl Studio {
         }
     }
 
+    fn flex_combo_box(ui: &mut egui::Ui, id: &str, selected: &mut String, options: &[&str]) {
+        let width = ui.available_width();
+        egui::ComboBox::from_id_salt(id)
+            .selected_text(selected.as_str())
+            .width(width)
+            .show_ui(ui, |ui| {
+                for &option in options {
+                    ui.selectable_value(selected, option.to_string(), option);
+                }
+            });
+    }
+
     pub fn show_main_panel(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("main_menu").show(ctx, |ui| {
             self.show_main_menu(ui);
@@ -423,12 +435,64 @@ impl Studio {
                 let mut selected = "Bolt".to_owned();
                 let options = vec!["Bolt", "Stud"];
 
-                egui::ComboBox::from_id_salt("suss")
+                let mut thread = "Metric".to_owned();
+                let mut size = "M4".to_owned();
+                let mut pitch = "0.5".to_owned();
+
+                let threads = vec!["Metric", "Imperial"];
+                let sizes = vec!["M3", "M4", "M5", "M6", "M7"];
+                let pitches = vec!["0.5", "0.7", "0.8", "1.0", "1.25"];
+
+                // Fastener Type Section
+                ui.label(egui::RichText::new("Fastener Type").strong());
+                ui.add_space(4.0);
+                egui::ComboBox::from_id_salt("sfsd")
                     .selected_text(selected.as_str())
+                    .width(ui.available_width())
                     .show_ui(ui, |ui| {
-                        for option in options {
+                        for &option in &options {
                             ui.selectable_value(&mut selected, option.to_string(), option);
                         }
+                    });
+
+                ui.add_space(12.0);
+
+                // Thread Specification Section
+                ui.label(egui::RichText::new("Thread Specification").strong());
+                ui.add_space(4.0);
+
+                // Labels row
+                Flex::horizontal()
+                    .align_content(FlexAlignContent::Stretch)
+                    .w_full()
+                    .show(ui, |flex| {
+                        flex.add_ui(item().grow(1.0).basis(0.0), |ui| {
+                            ui.label("Thread:");
+                        });
+                        flex.add_ui(item().grow(1.0).basis(0.0), |ui| {
+                            ui.label("Size:");
+                        });
+                        flex.add_ui(item().grow(1.0).basis(0.0), |ui| {
+                            ui.label("Pitch:");
+                        });
+                    });
+
+                ui.add_space(2.0);
+
+                // Combo boxes row
+                Flex::horizontal()
+                    .align_content(FlexAlignContent::Stretch)
+                    .w_full()
+                    .show(ui, |flex| {
+                        flex.add_ui(item().grow(1.0).basis(0.0), |ui| {
+                            Self::flex_combo_box(ui, "thread_combo", &mut thread, &threads);
+                        });
+                        flex.add_ui(item().grow(1.0).basis(0.0), |ui| {
+                            Self::flex_combo_box(ui, "size_combo", &mut size, &sizes);
+                        });
+                        flex.add_ui(item().grow(1.0).basis(0.0), |ui| {
+                            Self::flex_combo_box(ui, "pitch_combo", &mut pitch, &pitches);
+                        });
                     });
             },
         );
