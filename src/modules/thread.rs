@@ -36,9 +36,9 @@ pub struct Thread {
     pub minor_diameter: f64,             // root diameter (mm or inches)
     pub pitch: f64,                      // distance between threads (mm or inches)
     pub threads_per_unit: Option<f64>,   // optional: for imperial threads (TPI)
-    pub length: Option<f64>,             // optional: thread length
-    pub hand: ThreadHand,                // right or left-hand
-    pub angle: f64, // thread angle in degrees (e.g., 60 for metric, 55 for UNC)
+    pub length: Option<f64>, // optional: thread length - this might require external info
+    pub hand: ThreadHand,    // right or left-hand
+    pub angle: f64,          // thread angle in degrees (e.g., 60 for metric, 55 for UNC)
     pub tolerance_class: Option<String>, // e.g., "6g" for metric, "2A" for UNC
     pub note: Option<String>, // optional description
 }

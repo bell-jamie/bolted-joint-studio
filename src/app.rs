@@ -1,9 +1,6 @@
-use crate::modules::{
-    geometry, joint::BoltedJoint, library::Library, state::UIState, utils::text_width,
-};
-use egui::{Frame, Rounding, Stroke, Ui, Vec2, vec2};
-use egui_flex::{Flex, FlexAlign, FlexAlignContent, FlexDirection, FlexItem, item};
-use hello_egui_utils::center::Center;
+use crate::modules::{fastener_input, joint::BoltedJoint, library::Library, state::UIState};
+use egui::{Frame, Stroke, Ui, Vec2, vec2};
+use egui_flex::{Flex, FlexAlignContent, item};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -86,6 +83,9 @@ impl Studio {
             head_thickness: 5.0,
             bearing_od: 8.0,
             root_fillet: Some(0.5),
+            waisted: false,
+            waist_diameter: None,
+            grip_length: 30.0,
         });
         app.joint.bolt_id = Some(0);
         app
@@ -127,10 +127,36 @@ impl Studio {
         }
     }
 
+    fn flex_combo_box(ui: &mut egui::Ui, id: &str, selected: &mut String, options: &[&str]) {
+        let width = ui.available_width();
+        egui::ComboBox::from_id_salt(id)
+            .selected_text(selected.as_str())
+            .width(width)
+            .show_ui(ui, |ui| {
+                for &option in options {
+                    ui.selectable_value(selected, option.to_string(), option);
+                }
+            });
+    }
+
     pub fn show_main_panel(&mut self, ctx: &egui::Context) {
+        // Handle keyboard shortcuts
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::B)) {
+            self.state.show_library_panel = !self.state.show_library_panel;
+        }
+
         egui::TopBottomPanel::top("main_menu").show(ctx, |ui| {
             self.show_main_menu(ui);
         });
+
+        if self.state.show_library_panel {
+            egui::SidePanel::left("library_panel")
+                .default_width(250.0)
+                .resizable(true)
+                .show(ctx, |ui| {
+                    self.show_library_panel(ui);
+                });
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             self.show_central_content(ui);
@@ -171,11 +197,15 @@ impl Studio {
             });
 
             ui.menu_button("View", |ui| {
-                // Toggle panels visibility here
                 egui::widgets::global_theme_preference_buttons(ui);
-                ui.checkbox(&mut self.state.show_nav_panel, "Nav Panel");
-                ui.checkbox(&mut true, "Properties Panel");
+                ui.separator();
+                ui.checkbox(&mut self.state.show_library_panel, "Library Panel");
             });
+
+            // Direct Library toggle button
+            if ui.button("Library").clicked() {
+                self.state.show_library_panel = !self.state.show_library_panel;
+            }
 
             ui.menu_button("Help", |ui| {
                 if ui.button("About").clicked() {
@@ -416,22 +446,127 @@ impl Studio {
     }
 
     fn bolt_input_caller(ui: &mut egui::Ui, app: &mut Studio) {
-        Self::content_card(
-            ui,
-            Some(|ui: &mut Ui| app.render_title_editable(ui)),
-            |ui| {
-                let mut selected = "Bolt".to_owned();
-                let options = vec!["Bolt", "Stud"];
+        // Check if fastener is already in library
+        let fastener_type = app.state.fastener_input.fastener_type;
+        let is_in_library = match fastener_type {
+            fastener_input::FastenerType::Bolt => app.joint.bolt_id.is_some(),
+            fastener_input::FastenerType::Stud => app.joint.stud_id.is_some(),
+        };
 
-                egui::ComboBox::from_id_salt("suss")
-                    .selected_text(selected.as_str())
-                    .show_ui(ui, |ui| {
-                        for option in options {
-                            ui.selectable_value(&mut selected, option.to_string(), option);
-                        }
+        let mut save_clicked = false;
+        let mut save_as_clicked = false;
+        let mut new_clicked = false;
+        let mut autosave_toggled = false;
+        let autosave_enabled = app.state.fastener_autosave;
+
+        // Render UI
+        Frame::group(ui.style())
+            .corner_radius(10.0)
+            .stroke(Stroke::new(
+                1.0,
+                ui.visuals().widgets.noninteractive.bg_stroke.color,
+            ))
+            .fill(ui.visuals().panel_fill)
+            .inner_margin(12.0)
+            .show(ui, |ui| {
+                ui.expand_to_include_rect(ui.max_rect());
+
+                ui.vertical(|ui| {
+                    // Title bar with buttons
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Fastener").size(14.0).strong());
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if is_in_library {
+                                // Show autosave toggle button when fastener is in library
+                                if ui.selectable_label(autosave_enabled, "Autosave").clicked() {
+                                    autosave_toggled = true;
+                                }
+
+                                // Save As button to create a copy
+                                save_as_clicked = ui.button("Save As").clicked();
+                            } else {
+                                // Show save button when fastener is not in library
+                                save_clicked = ui.button("Save").clicked();
+                            }
+
+                            // New button always available
+                            new_clicked = ui.button("New").clicked();
+                        });
                     });
-            },
-        );
+
+                    ui.add_space(6.0);
+                    ui.separator();
+                    ui.add_space(6.0);
+
+                    // Content
+                    fastener_input::render_fastener_input(ui, &mut app.state.fastener_input);
+                });
+            });
+
+        // Handle new action (reset to defaults)
+        if new_clicked {
+            app.state.fastener_input = fastener_input::FastenerInputState::default();
+            app.joint.bolt_id = None;
+            app.joint.stud_id = None;
+        }
+
+        // Handle save action
+        if save_clicked {
+            match fastener_type {
+                fastener_input::FastenerType::Bolt => {
+                    let bolt = app.state.fastener_input.build_bolt();
+                    let idx = app.library.bolt.len();
+                    app.library.bolt.push(bolt);
+                    app.joint.bolt_id = Some(idx);
+                }
+                fastener_input::FastenerType::Stud => {
+                    let stud = app.state.fastener_input.build_stud();
+                    let idx = app.library.stud.len();
+                    app.library.stud.push(stud);
+                    app.joint.stud_id = Some(idx);
+                }
+            }
+        }
+
+        // Handle save as action (create copy)
+        if save_as_clicked {
+            match fastener_type {
+                fastener_input::FastenerType::Bolt => {
+                    let bolt = app.state.fastener_input.build_bolt();
+                    let idx = app.library.bolt.len();
+                    app.library.bolt.push(bolt);
+                    app.joint.bolt_id = Some(idx);
+                }
+                fastener_input::FastenerType::Stud => {
+                    let stud = app.state.fastener_input.build_stud();
+                    let idx = app.library.stud.len();
+                    app.library.stud.push(stud);
+                    app.joint.stud_id = Some(idx);
+                }
+            }
+        }
+
+        // Handle autosave toggle
+        if autosave_toggled {
+            app.state.fastener_autosave = !autosave_enabled;
+        }
+
+        // Handle autosave
+        if is_in_library && autosave_enabled {
+            match fastener_type {
+                fastener_input::FastenerType::Bolt => {
+                    if let Some(idx) = app.joint.bolt_id {
+                        app.library.bolt[idx] = app.state.fastener_input.build_bolt();
+                    }
+                }
+                fastener_input::FastenerType::Stud => {
+                    if let Some(idx) = app.joint.stud_id {
+                        app.library.stud[idx] = app.state.fastener_input.build_stud();
+                    }
+                }
+            }
+        }
     }
 
     fn content_card(
@@ -460,6 +595,126 @@ impl Studio {
 
                     content(ui);
                 });
+            });
+    }
+
+    fn show_library_panel(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Library");
+        ui.separator();
+
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                // Bolts section
+                ui.label(egui::RichText::new("Bolts").strong());
+                ui.add_space(4.0);
+
+                if self.library.bolt.is_empty() {
+                    ui.label(egui::RichText::new("No bolts saved").weak().italics());
+                } else {
+                    for (idx, bolt) in self.library.bolt.iter().enumerate() {
+                        let is_selected = self.joint.bolt_id == Some(idx);
+                        if ui.selectable_label(is_selected, &bolt.name).clicked() {
+                            self.joint.bolt_id = Some(idx);
+                            self.joint.stud_id = None;
+                            self.state.fastener_input.load_from_bolt(bolt);
+                        }
+                    }
+                }
+
+                ui.add_space(12.0);
+
+                // Studs section
+                ui.label(egui::RichText::new("Studs").strong());
+                ui.add_space(4.0);
+
+                if self.library.stud.is_empty() {
+                    ui.label(egui::RichText::new("No studs saved").weak().italics());
+                } else {
+                    for (idx, stud) in self.library.stud.iter().enumerate() {
+                        let is_selected = self.joint.stud_id == Some(idx);
+                        if ui.selectable_label(is_selected, &stud.name).clicked() {
+                            self.joint.stud_id = Some(idx);
+                            self.joint.bolt_id = None;
+                            self.state.fastener_input.load_from_stud(stud);
+                        }
+                    }
+                }
+
+                ui.add_space(12.0);
+
+                // Nuts section
+                ui.label(egui::RichText::new("Nuts").strong());
+                ui.add_space(4.0);
+
+                if self.library.nut.is_empty() {
+                    ui.label(egui::RichText::new("No nuts saved").weak().italics());
+                } else {
+                    for (idx, nut) in self.library.nut.iter().enumerate() {
+                        let is_selected = self.joint.nut_id == Some(idx);
+                        if ui.selectable_label(is_selected, &nut.name).clicked() {
+                            self.joint.nut_id = Some(idx);
+                        }
+                    }
+                }
+
+                ui.add_space(12.0);
+
+                // Threaded Elements section
+                ui.label(egui::RichText::new("Threaded Elements").strong());
+                ui.add_space(4.0);
+
+                if self.library.threaded.is_empty() {
+                    ui.label(
+                        egui::RichText::new("No threaded elements saved")
+                            .weak()
+                            .italics(),
+                    );
+                } else {
+                    for (idx, threaded) in self.library.threaded.iter().enumerate() {
+                        let is_selected = self.joint.threaded_id == Some(idx);
+                        if ui.selectable_label(is_selected, &threaded.name).clicked() {
+                            self.joint.threaded_id = Some(idx);
+                        }
+                    }
+                }
+
+                ui.add_space(12.0);
+
+                // Clamped Elements section
+                ui.label(egui::RichText::new("Clamped Elements").strong());
+                ui.add_space(4.0);
+
+                if self.library.clamped.is_empty() {
+                    ui.label(
+                        egui::RichText::new("No clamped elements saved")
+                            .weak()
+                            .italics(),
+                    );
+                } else {
+                    for (idx, clamped) in self.library.clamped.iter().enumerate() {
+                        let is_selected = self.joint.clamped_ids == Some(idx);
+                        if ui.selectable_label(is_selected, &clamped.name).clicked() {
+                            self.joint.clamped_ids = Some(idx);
+                        }
+                    }
+                }
+
+                ui.add_space(12.0);
+
+                // Joints section
+                ui.label(egui::RichText::new("Saved Joints").strong());
+                ui.add_space(4.0);
+
+                if self.library.joint.is_empty() {
+                    ui.label(egui::RichText::new("No joints saved").weak().italics());
+                } else {
+                    for (_idx, joint) in self.library.joint.iter().enumerate() {
+                        if ui.selectable_label(false, &joint.name).clicked() {
+                            // TODO: Load entire joint configuration
+                        }
+                    }
+                }
             });
     }
 
